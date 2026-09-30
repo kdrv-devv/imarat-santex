@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Imarat-log
 
-## Getting Started
+Santexnika guruhi uchun obyektlar (uylar) va ularga kerakli ashyolar ro'yxatini yuritish ilovasi.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS v4, MongoDB (Mongoose), JWT (jose) + httpOnly cookie.
+
+## Ishga tushirish
 
 ```bash
+cp .env.example .env.local   # kerak bo'lsa qiymatlarni o'zgartiring
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| O'zgaruvchi | Tavsif |
+|---|---|
+| `MONGODB_URI` | MongoDB ulanish manzili |
+| `JWT_SECRET` | Sessiya tokenini imzolash kaliti (productionda albatta o'zgartiring) |
+| `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` | Bazada foydalanuvchi bo'lmasa, birinchi kirishda shu ma'lumotlar bilan SUPERADMIN yaratiladi |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Rollar
 
-## Learn More
+- **SUPERADMIN** — hodimlar yaratadi, ularning login/parolini o'zgartiradi, kim qaysi obyektni yaratgani va qaysi mahsulotni qo'shganini ko'radi (Faoliyat bo'limi).
+- **Hodim** — obyekt yaratadi, mahsulot bazasini to'ldiradi, obyektga ashyo qo'shadi. Login/parolni o'zi o'zgartira olmaydi.
 
-To learn more about Next.js, take a look at the following resources:
+## Sahifalar
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Yo'l | Tavsif |
+|---|---|
+| `/login` | Kirish |
+| `/objects` | Obyektlar ro'yxati |
+| `/objects/[id]` | Obyekt ashyolari: qo'shish, miqdor, PNG yuklab olish, ulashish |
+| `/products` | Mahsulotlar bazasi (rasm bilan) |
+| `/profile` | Profil |
+| `/admin/employees` | Hodimlar (faqat superadmin) |
+| `/admin/activity` | Faoliyat jurnali (faqat superadmin) |
+| `/share/[token]` | Ochiq, faqat ko'rish rejimidagi ro'yxat (kirish talab qilinmaydi) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tuzilma
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/            sahifalar (App Router)
+  components/     UI komponentlar
+  lib/actions/    server actions (backend logikasi)
+  lib/models/     Mongoose modellari: User, Product, Site, Activity
+  lib/auth.ts     sessiya (JWT cookie)
+  proxy.ts        route himoyasi
+```
