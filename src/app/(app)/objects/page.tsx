@@ -15,14 +15,14 @@ import { NewObjectButton } from "./NewObjectButton";
 export const metadata: Metadata = { title: "Obyektlar" };
 export const dynamic = "force-dynamic";
 
-type Creator = { _id: unknown; firstName: string; lastName: string };
+type Creator = { _id: unknown; firstName: string; lastName: string; avatar?: string | null };
 
 export default async function ObjectsPage() {
   const user = await requireUser();
   await connectDB();
   const sites = await Site.find()
     .sort({ createdAt: -1 })
-    .populate<{ createdBy: Creator | null }>("createdBy", "firstName lastName")
+    .populate<{ createdBy: Creator | null }>("createdBy", "firstName lastName avatar")
     .lean();
   const admin = isAdmin(user);
 
@@ -68,7 +68,7 @@ export default async function ObjectsPage() {
                   <div className="flex items-center gap-2">
                     {admin && s.createdBy && (
                       <span className="flex items-center gap-1.5 text-xs text-muted" title={`Yaratuvchi: ${s.createdBy.firstName} ${s.createdBy.lastName}`}>
-                        <Avatar firstName={s.createdBy.firstName} lastName={s.createdBy.lastName} size={20} />
+                        <Avatar firstName={s.createdBy.firstName} lastName={s.createdBy.lastName} size={20} src={s.createdBy.avatar} />
                         {mine ? "Siz" : s.createdBy.firstName}
                       </span>
                     )}

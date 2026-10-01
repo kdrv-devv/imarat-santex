@@ -1,4 +1,5 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
+import { defineModel } from "@/lib/db";
 
 import { UNITS } from "@/lib/constants";
 export { UNITS, type Unit } from "@/lib/constants";
@@ -10,6 +11,8 @@ const ProductSchema = new Schema(
     image: { type: String, default: null }, // Cloudinary https URL
     imagePublicId: { type: String, default: null }, // Cloudinary public_id (o'chirish uchun)
     note: { type: String, default: "", trim: true },
+    /** Razmerlar/variantlar: "32", "36", "1/2", "3/4" ... Obyektga qo'shishda bittasi tanlanadi */
+    variants: { type: [String], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
   },
@@ -21,4 +24,4 @@ ProductSchema.index({ name: "text" });
 export type ProductDoc = InferSchemaType<typeof ProductSchema> & { _id: mongoose.Types.ObjectId };
 
 export const Product: Model<ProductDoc> =
-  mongoose.models.Product ?? mongoose.model<ProductDoc>("Product", ProductSchema);
+  defineModel<ProductDoc>("Product", ProductSchema);

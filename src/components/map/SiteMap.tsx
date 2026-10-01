@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Navigation } from "lucide-react";
 import type { GeoPoint } from "@/lib/types";
+import { YandexTaxiButton } from "./YandexTaxiButton";
 
 const Inner = dynamic(() => import("./SiteMapInner"), {
   ssr: false,
@@ -19,7 +20,9 @@ export function navLinks(p: GeoPoint) {
 }
 
 /**
- * Obyekt joylashuvi: kichik xarita + "Yo'l ko'rsat" tugmalari.
+ * Obyekt joylashuvi: kichik xarita + harakat tugmalari.
+ *  - "Yandex Go taksi": bosgan odamning hozirgi joyidan (do'kon/ofis) obyektgacha taksi buyurtmasi.
+ *  - "Yandex" / "Google Maps": o'z transportida yo'l ko'rsatish.
  * Xaritaning o'zi bosilganda ham Google Maps ochiladi.
  */
 export function SiteMap({ point, height = 160, className = "" }: { point: GeoPoint; height?: number; className?: string }) {
@@ -29,13 +32,16 @@ export function SiteMap({ point, height = 160, className = "" }: { point: GeoPoi
       <a href={links.google} target="_blank" rel="noopener noreferrer" className="block relative" aria-label="Xaritada ochish">
         <Inner point={point} height={height} />
       </a>
-      <div className="flex gap-2 p-2 bg-surface border-t border-border">
-        <a href={links.yandex} target="_blank" rel="noopener noreferrer" className="btn-primary flex-1 !py-2 text-sm">
-          <Navigation size={15} /> Yandex
-        </a>
-        <a href={links.google} target="_blank" rel="noopener noreferrer" className="btn-ghost flex-1 !py-2 text-sm">
-          <Navigation size={15} /> Google Maps
-        </a>
+      <div className="p-2 bg-surface border-t border-border space-y-2">
+        <YandexTaxiButton to={point} />
+        <div className="flex gap-2">
+          <a href={links.yandex} target="_blank" rel="noopener noreferrer" className="btn-ghost flex-1 !py-2 text-sm">
+            <Navigation size={15} /> Yandex Maps
+          </a>
+          <a href={links.google} target="_blank" rel="noopener noreferrer" className="btn-ghost flex-1 !py-2 text-sm">
+            <Navigation size={15} /> Google Maps
+          </a>
+        </div>
       </div>
     </div>
   );

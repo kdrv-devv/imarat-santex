@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format";
 import { changeCredentialsAction, createEmployeeAction, deleteEmployeeAction, updateEmployeeAction } from "@/lib/actions/users";
 
 export type EmployeeView = {
-  id: string; firstName: string; lastName: string; phone: string; username: string;
+  id: string; firstName: string; lastName: string; phone: string; username: string; avatar: string | null;
   role: "SUPERADMIN" | "EMPLOYEE"; active: boolean; createdAt: string; sites: number; products: number;
 };
 
@@ -63,7 +63,7 @@ export function EmployeesClient({ users, meId }: { users: EmployeeView[]; meId: 
 function Row({ u, me, onEdit, onCreds }: { u: EmployeeView; me: boolean; onEdit: () => void; onCreds: () => void }) {
   return (
     <div className={`flex items-center gap-3 p-3 md:px-4 ${!u.active ? "opacity-50" : ""}`}>
-      <Avatar firstName={u.firstName} lastName={u.lastName} size={42} />
+      <Avatar firstName={u.firstName} lastName={u.lastName} size={42} src={u.avatar} />
       <div className="flex-1 min-w-0">
         <div className="font-semibold truncate flex items-center gap-2">
           {u.firstName} {u.lastName}

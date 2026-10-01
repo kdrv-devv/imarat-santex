@@ -1,5 +1,5 @@
-export type UserLite = { id: string; firstName: string; lastName: string };
-export type ProductLite = { id: string; name: string; unit: string; image: string | null; note?: string };
+export type UserLite = { id: string; firstName: string; lastName: string; avatar?: string | null };
+export type ProductLite = { id: string; name: string; unit: string; image: string | null; note?: string; variants: string[] };
 export type ProductView = ProductLite & {
   note: string;
   createdAt: string;
@@ -11,6 +11,7 @@ export type ItemView = {
   id: string;
   product: ProductLite | null;
   qty: number;
+  variant: string;
   note: string;
   addedBy: UserLite | null;
   addedAt: string;

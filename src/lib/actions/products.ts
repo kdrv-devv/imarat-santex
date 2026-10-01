@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { Product, UNITS, type Unit } from "@/lib/models/Product";
+import { normalizeVariants } from "@/lib/constants";
 import { Site } from "@/lib/models/Site";
 import { requireUser, isAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
@@ -32,7 +33,8 @@ function readFields(fd: FormData) {
   const name = String(fd.get("name") ?? "").trim();
   const unit = String(fd.get("unit") ?? "");
   const note = String(fd.get("note") ?? "").trim();
-  return { name, unit, note };
+  const variants = normalizeVariants(fd.getAll("variants"));
+  return { name, unit, note, variants };
 }
 
 async function uploadOrError(file: Blob): Promise<UploadedImage | { error: string }> {
@@ -46,7 +48,7 @@ async function uploadOrError(file: Blob): Promise<UploadedImage | { error: strin
 
 export async function createProductAction(fd: FormData): Promise<ActionResult & { id?: string }> {
   const user = await requireUser();
-  const { name, unit, note } = readFields(fd);
+  const { name, unit, note, variants } = readFields(fd);
   if (!name) return { ok: false, error: "Mahsulot nomini kiriting" };
   if (!UNITS.includes(unit as Unit)) return { ok: false, error: "O'lchov birligi noto'g'ri" };
   let intent: ImageIntent;
@@ -64,7 +66,7 @@ export async function createProductAction(fd: FormData): Promise<ActionResult & 
   }
 
   const p = await Product.create({
-    name, unit: unit as Unit, note,
+    name, unit: unit as Unit, note, variants,
     image: uploaded?.url ?? null,
     imagePublicId: uploaded?.publicId ?? null,
     createdBy: user.id,
@@ -78,7 +80,7 @@ export async function createProductAction(fd: FormData): Promise<ActionResult & 
 export async function updateProductAction(id: string, fd: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!mongoose.isValidObjectId(id)) return { ok: false, error: "Noto'g'ri ID" };
-  const { name, unit, note } = readFields(fd);
+  const { name, unit, note, variants } = readFields(fd);
   if (!name) return { ok: false, error: "Mahsulot nomini kiriting" };
   if (!UNITS.includes(unit as Unit)) return { ok: false, error: "O'lchov birligi noto'g'ri" };
   let intent: ImageIntent;
@@ -99,6 +101,7 @@ export async function updateProductAction(id: string, fd: FormData): Promise<Act
   p.name = name;
   p.unit = unit as Unit;
   p.note = note;
+  p.variants = variants as never;
   if (intent.kind === "replace") {
     p.image = uploaded!.url;
     p.imagePublicId = uploaded!.publicId;

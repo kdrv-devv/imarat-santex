@@ -39,6 +39,11 @@ export function ExportSheet({ site }: { site: SiteView }) {
               <td style={{ padding: "11px 12px", color: "#94a3b8", fontWeight: 600 }}>{i + 1}</td>
               <td style={{ padding: "11px 12px", fontWeight: 600 }}>
                 {it.product!.name}
+                {it.variant && (
+                  <span style={{ marginLeft: 8, display: "inline-block", padding: "2px 8px", borderRadius: 6, background: "#ffedd5", color: "#c2410c", fontSize: 13, verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                    <span style={{ fontWeight: 600, opacity: 0.85 }}>Razmer: </span><span style={{ fontWeight: 800 }}>{it.variant}</span>
+                  </span>
+                )}
                 {it.note && <div style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>{it.note}</div>}
               </td>
               <td style={{ padding: "11px 12px", textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}>

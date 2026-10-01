@@ -40,7 +40,7 @@ const ICONS: Record<ActivityType, { icon: typeof Building2; cls: string }> = {
 
 type Row = {
   _id: unknown; type: ActivityType; createdAt: Date; site: unknown; product: unknown;
-  actor: { firstName: string; lastName: string } | null;
+  actor: { firstName: string; lastName: string; avatar?: string | null } | null;
   meta: { siteName: string; productName: string; userName: string; qty: number | null; unit: string; extra: string };
 };
 
@@ -76,7 +76,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   await connectDB();
   const query = filter.types.length ? { type: { $in: filter.types } } : {};
   const [rows, total] = await Promise.all([
-    Activity.find(query).sort({ createdAt: -1 }).skip((pageNum - 1) * PAGE).limit(PAGE).populate("actor", "firstName lastName").lean<Row[]>(),
+    Activity.find(query).sort({ createdAt: -1 }).skip((pageNum - 1) * PAGE).limit(PAGE).populate("actor", "firstName lastName avatar").lean<Row[]>(),
     Activity.countDocuments(query),
   ]);
 
@@ -114,7 +114,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cls}`}><Icon size={16} /></div>
                       <div className="flex-1 min-w-0 text-sm text-text-2">
                         <span className="inline-flex items-center gap-1.5 mr-1">
-                          {a.actor && <Avatar firstName={a.actor.firstName} lastName={a.actor.lastName} size={18} />}
+                          {a.actor && <Avatar firstName={a.actor.firstName} lastName={a.actor.lastName} size={18} src={a.actor.avatar} />}
                           <b className="text-text">{a.actor ? `${a.actor.firstName} ${a.actor.lastName}` : "Noma'lum"}</b>
                         </span>
                         {describe(a)}

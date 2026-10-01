@@ -28,11 +28,11 @@ export default async function ObjectPage({ params }: Params) {
   await connectDB();
   const [site, products] = await Promise.all([
     Site.findById(id)
-      .populate("createdBy", "firstName lastName")
-      .populate("items.product", "name unit image")
-      .populate("items.addedBy", "firstName lastName")
+      .populate("createdBy", "firstName lastName avatar")
+      .populate("items.product", "name unit image variants")
+      .populate("items.addedBy", "firstName lastName avatar")
       .lean(),
-    Product.find({}, "name unit image").sort({ name: 1 }).lean(),
+    Product.find({}, "name unit image variants").sort({ name: 1 }).lean(),
   ]);
   if (!site) notFound();
   const view = toSiteView(site);

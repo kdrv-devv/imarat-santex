@@ -14,7 +14,7 @@ export default async function ProductsPage() {
   const user = await requireUser();
   await connectDB();
   const [products, usage] = await Promise.all([
-    Product.find().sort({ name: 1 }).populate("createdBy", "firstName lastName").populate("updatedBy", "firstName lastName").lean(),
+    Product.find().sort({ name: 1 }).populate("createdBy", "firstName lastName avatar").populate("updatedBy", "firstName lastName avatar").lean(),
     Site.aggregate<{ _id: unknown; count: number }>([
       { $unwind: "$items" },
       { $group: { _id: "$items.product", count: { $sum: 1 } } },

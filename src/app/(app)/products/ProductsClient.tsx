@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, ErrorText } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
+import { VariantsInput } from "@/components/ui/VariantsInput";
 import { useToast } from "@/components/ui/Toast";
 import { UNITS } from "@/lib/constants";
 import { compressImage } from "@/lib/image-client";
@@ -64,11 +65,16 @@ export function ProductsClient({ products, usage, isAdmin, currentUserId }: Prop
               </div>
               <div className="min-w-0">
                 <div className="font-bold text-sm leading-tight truncate">{p.name}</div>
+                {p.variants.length > 0 && (
+                  <div className="text-[11px] text-text-2 mt-0.5 truncate" title={p.variants.join(", ")}>
+                    <span className="text-muted">Razmer:</span> {p.variants.join(" · ")}
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-1.5 text-[11px] text-muted">
                   <span className="flex items-center gap-1"><Building2 size={11} /> {usage[p.id] ?? 0} obyektda</span>
                   {isAdmin && p.createdBy && (
                     <span className="flex items-center gap-1" title={`Qo'shdi: ${p.createdBy.firstName} ${p.createdBy.lastName} · ${formatDate(p.createdAt, true)}`}>
-                      <Avatar firstName={p.createdBy.firstName} lastName={p.createdBy.lastName} size={14} />
+                      <Avatar firstName={p.createdBy.firstName} lastName={p.createdBy.lastName} size={14} src={p.createdBy.avatar} />
                       {p.createdBy.id === currentUserId ? "Siz" : p.createdBy.firstName}
                     </span>
                   )}
@@ -89,6 +95,7 @@ function ProductModal({ product, open, onClose, isAdmin, usage }: { product: Pro
   const [name, setName] = useState(product?.name ?? "");
   const [unit, setUnit] = useState<string>(product?.unit ?? "dona");
   const [note, setNote] = useState(product?.note ?? "");
+  const [variants, setVariants] = useState<string[]>(product?.variants ?? []);
   // preview: ko'rsatiladigan rasm (mavjud URL yoki yangi faylning object URL'i)
   const [preview, setPreview] = useState<string | null>(product?.image ?? null);
   // newFile: Cloudinary'ga yuboriladigan siqilgan rasm; removed: mavjud rasm olib tashlansin
@@ -134,6 +141,7 @@ function ProductModal({ product, open, onClose, isAdmin, usage }: { product: Pro
       fd.set("name", name);
       fd.set("unit", unit);
       fd.set("note", note);
+      for (const v of variants) fd.append("variants", v);
       if (newFile) {
         fd.set("imageAction", "replace");
         fd.set("image", newFile, "product.jpg");
@@ -187,7 +195,10 @@ function ProductModal({ product, open, onClose, isAdmin, usage }: { product: Pro
             </Field>
           </div>
         </div>
-        <Field label="Izoh (ixtiyoriy)"><input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="Brend, o'lcham, rang..." /></Field>
+        <Field label="Razmerlar / variantlar (ixtiyoriy)" plain>
+          <VariantsInput value={variants} onChange={setVariants} />
+        </Field>
+        <Field label="Izoh (ixtiyoriy)"><input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="Brend, rang..." /></Field>
 
         {product && isAdmin && (
           <div className="text-xs text-muted rounded-xl bg-surface-2 px-3 py-2 space-y-0.5">

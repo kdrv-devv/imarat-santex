@@ -5,12 +5,12 @@ type Any = any;
 
 export function toUserLite(u: Any): UserLite | null {
   if (!u || typeof u !== "object" || !("firstName" in u)) return null;
-  return { id: String(u._id), firstName: u.firstName, lastName: u.lastName };
+  return { id: String(u._id), firstName: u.firstName, lastName: u.lastName, avatar: u.avatar ?? null };
 }
 
 export function toProductLite(p: Any): ProductLite | null {
   if (!p || typeof p !== "object" || !("name" in p)) return null;
-  return { id: String(p._id), name: p.name, unit: p.unit, image: p.image ?? null, note: p.note ?? "" };
+  return { id: String(p._id), name: p.name, unit: p.unit, image: p.image ?? null, note: p.note ?? "", variants: Array.isArray(p.variants) ? p.variants : [] };
 }
 
 export function toProductView(p: Any): ProductView {
@@ -20,6 +20,7 @@ export function toProductView(p: Any): ProductView {
     unit: p.unit,
     image: p.image ?? null,
     note: p.note ?? "",
+    variants: Array.isArray(p.variants) ? p.variants : [],
     createdAt: p.createdAt?.toISOString?.() ?? "",
     updatedAt: p.updatedAt?.toISOString?.() ?? "",
     createdBy: toUserLite(p.createdBy),
@@ -32,6 +33,7 @@ export function toSiteView(s: Any): SiteView {
     id: String(it._id),
     product: toProductLite(it.product),
     qty: it.qty,
+    variant: it.variant ?? "",
     note: it.note ?? "",
     addedBy: toUserLite(it.addedBy),
     addedAt: it.addedAt?.toISOString?.() ?? "",

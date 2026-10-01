@@ -5,10 +5,10 @@ import { Site } from "@/lib/models/Site";
 import { Product } from "@/lib/models/Product";
 import { requireUser, isAdmin } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
-import { Avatar } from "@/components/ui/Avatar";
 import { formatDate } from "@/lib/format";
 import { LogoutButton } from "@/components/LogoutButton";
 import { ProfileForms } from "./ProfileForms";
+import { AvatarUploader } from "./AvatarUploader";
 import { InstallAppButton } from "@/components/InstallAppButton";
 
 export const metadata: Metadata = { title: "Profil" };
@@ -30,7 +30,7 @@ export default async function ProfilePage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
         <div className="space-y-4">
           <div className="card p-6 flex flex-col items-center text-center animate-fade-up">
-            <Avatar firstName={user.firstName} lastName={user.lastName} size={84} />
+            <AvatarUploader user={user} />
             <h2 className="text-xl font-extrabold mt-4">{user.fullName}</h2>
             <span className={admin ? "badge-accent mt-2" : "badge-primary mt-2"}><Shield size={12} /> {admin ? "Superadmin" : "Hodim"}</span>
             <div className="w-full mt-6 space-y-2 text-sm text-left">

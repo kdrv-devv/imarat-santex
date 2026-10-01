@@ -1,4 +1,5 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
+import { defineModel } from "@/lib/db";
 
 export const ACTIVITY_TYPES = [
   "OBJECT_CREATED",
@@ -42,4 +43,4 @@ ActivitySchema.index({ createdAt: -1 });
 export type ActivityDoc = InferSchemaType<typeof ActivitySchema> & { _id: mongoose.Types.ObjectId };
 
 export const Activity: Model<ActivityDoc> =
-  mongoose.models.Activity ?? mongoose.model<ActivityDoc>("Activity", ActivitySchema);
+  defineModel<ActivityDoc>("Activity", ActivitySchema);

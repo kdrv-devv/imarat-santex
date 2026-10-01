@@ -10,6 +10,7 @@ import { ProductThumb } from "@/components/ProductThumb";
 import { DownloadImageButton } from "@/components/DownloadImageButton";
 import { SiteMap } from "@/components/map/SiteMap";
 import { formatDate, formatQty } from "@/lib/format";
+import { VariantBadge } from "@/components/ui/VariantBadge";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ token: string }> };
@@ -25,7 +26,7 @@ export default async function SharePage({ params }: Params) {
   const { token } = await params;
   if (!token || token.length < 6) notFound();
   await connectDB();
-  const site = await Site.findOne({ shareToken: token }).populate("items.product", "name unit image").lean();
+  const site = await Site.findOne({ shareToken: token }).populate("items.product", "name unit image variants").lean();
   if (!site) notFound();
   const view = toSiteView(site);
   view.createdBy = null;
@@ -65,6 +66,7 @@ export default async function SharePage({ params }: Params) {
               <ProductThumb src={it.product!.image} name={it.product!.name} size={44} />
               <div className="flex-1 min-w-0">
                 <div className="font-semibold truncate">{it.product!.name}</div>
+                {it.variant && <div className="mt-1"><VariantBadge value={it.variant} className="!text-sm !px-2.5 !py-1" /></div>}
                 {it.note && <div className="text-xs text-muted truncate">{it.note}</div>}
               </div>
               <div className="text-right">

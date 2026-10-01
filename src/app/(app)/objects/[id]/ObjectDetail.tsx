@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, MapPin, Share2, Plus, Trash2, Minus, Search, Pencil, Loader2, Check, Copy, Package, ExternalLink, StickyNote,
+  ArrowLeft, MapPin, Share2, Plus, Trash2, Minus, Search, Pencil, Loader2, Check, Copy, Package, ExternalLink, StickyNote, CarTaxiFront,
 } from "lucide-react";
 import { TimeAgo } from "@/components/TimeAgo";
 import { Modal } from "@/components/ui/Modal";
@@ -21,6 +21,8 @@ import { createProductAction } from "@/lib/actions/products";
 import type { GeoPoint, ProductLite, SiteView } from "@/lib/types";
 import { LocationPicker } from "@/components/map/LocationPicker";
 import { SiteMap } from "@/components/map/SiteMap";
+import { VariantBadge } from "@/components/ui/VariantBadge";
+import { MAX_VARIANT_LEN } from "@/lib/constants";
 
 type Props = { site: SiteView; products: ProductLite[]; isAdmin: boolean; canDelete: boolean; currentUserId: string };
 
@@ -72,7 +74,7 @@ export function ObjectDetail({ site, products, isAdmin, canDelete, currentUserId
               <span>Yaratilgan: {formatDate(site.createdAt)}</span>
               {isAdmin && site.createdBy && (
                 <span className="flex items-center gap-1.5">
-                  <Avatar firstName={site.createdBy.firstName} lastName={site.createdBy.lastName} size={18} />
+                  <Avatar firstName={site.createdBy.firstName} lastName={site.createdBy.lastName} size={18} src={site.createdBy.avatar} />
                   {site.createdBy.id === currentUserId ? "Siz" : `${site.createdBy.firstName} ${site.createdBy.lastName}`}
                 </span>
               )}
@@ -111,6 +113,11 @@ export function ObjectDetail({ site, products, isAdmin, canDelete, currentUserId
 
       <Modal open={shareOpen} onClose={() => setShareOpen(false)} title="Ro'yxatni ulashish" size="sm">
         <p className="text-sm text-muted mb-3">Bu havolani olgan har kim ro'yxatni <b className="text-text">faqat ko'rish</b> rejimida ochadi. Kirish talab qilinmaydi.</p>
+        {site.location ? (
+          <p className="text-xs text-muted mb-3 flex items-start gap-1.5"><CarTaxiFront size={14} className="mt-0.5 shrink-0 text-accent" /> Sotuvchi mahsulotlarni yig'ib, “Yandex Go taksi” tugmasi orqali do'kondan to'g'ri obyektga taksi chaqira oladi.</p>
+        ) : (
+          <p className="text-xs text-warning mb-3 flex items-start gap-1.5"><MapPin size={14} className="mt-0.5 shrink-0" /> Obyektning xaritadagi joylashuvi belgilanmagan — sotuvchi taksi chaqira olmaydi. “Tahrirlash” orqali belgilang.</p>
+        )}
         <ShareBox url={shareUrl} />
         <a href={shareUrl} target="_blank" rel="noreferrer" className="btn-ghost w-full mt-3"><ExternalLink size={16} /> Ochib ko'rish</a>
       </Modal>
@@ -180,12 +187,15 @@ function ItemRow({ siteId, item, isAdmin, currentUserId }: { siteId: string; ite
       <div className="flex items-center gap-3">
         <ProductThumb src={p?.image ?? null} name={p?.name ?? ""} size={46} />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold leading-snug">{p?.name ?? <span className="text-danger">O'chirilgan mahsulot</span>}</div>
+          <div className="font-semibold leading-snug flex items-center gap-2 flex-wrap">
+            {p?.name ?? <span className="text-danger">O'chirilgan mahsulot</span>}
+            <VariantBadge value={item.variant} />
+          </div>
           <div className="text-xs text-muted flex items-center gap-1.5 flex-wrap mt-0.5">
             {item.note && <span className="truncate max-w-full">{item.note}</span>}
             {isAdmin && item.addedBy ? (
               <span className="inline-flex items-center gap-1 whitespace-nowrap" title={`Qo'shdi: ${item.addedBy.firstName} ${item.addedBy.lastName}`}>
-                <Avatar firstName={item.addedBy.firstName} lastName={item.addedBy.lastName} size={14} />
+                <Avatar firstName={item.addedBy.firstName} lastName={item.addedBy.lastName} size={14} src={item.addedBy.avatar} />
                 {item.addedBy.id === currentUserId ? "Siz" : item.addedBy.firstName} · <TimeAgo date={item.addedAt} />
               </span>
             ) : (
@@ -254,6 +264,7 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<ProductLite | null>(null);
   const [qty, setQty] = useState("1");
+  const [variant, setVariant] = useState("");
   const [note, setNote] = useState("");
   const [creating, setCreating] = useState(false);
   const [newUnit, setNewUnit] = useState<string>("dona");
@@ -265,16 +276,19 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
     return (s ? products.filter((p) => p.name.toLowerCase().includes(s)) : products).slice(0, 60);
   }, [q, products]);
 
-  function reset() { setQ(""); setSelected(null); setQty("1"); setNote(""); setCreating(false); setError(null); }
+  function reset() { setQ(""); setSelected(null); setQty("1"); setVariant(""); setNote(""); setCreating(false); setError(null); }
+  function select(p: ProductLite) { setSelected(p); setVariant(""); setError(null); }
   function close() { reset(); onClose(); }
 
   function add(product: ProductLite) {
     const n = Number(qty);
     if (!Number.isFinite(n) || n <= 0) return setError("Miqdor 0 dan katta bo'lsin");
+    const v = variant.trim();
+    if (product.variants.length && !v) return setError("Razmerni tanlang");
     start(async () => {
-      const r = await addItemAction(siteId, { productId: product.id, qty: n, note });
+      const r = await addItemAction(siteId, { productId: product.id, qty: n, variant: v, note });
       if (!r.ok) return setError(r.error);
-      toast(`${product.name} qo'shildi`);
+      toast(`${product.name}${v ? ` · ${v}` : ""} qo'shildi`);
       close();
     });
   }
@@ -286,10 +300,12 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
       const fd = new FormData();
       fd.set("name", name);
       fd.set("unit", newUnit);
+      const v = variant.trim();
+      if (v) fd.append("variants", v);
       const r = await createProductAction(fd);
       if (!r.ok) return setError(r.error);
       const n = Number(qty);
-      const r2 = await addItemAction(siteId, { productId: r.id!, qty: Number.isFinite(n) && n > 0 ? n : 1, note });
+      const r2 = await addItemAction(siteId, { productId: r.id!, qty: Number.isFinite(n) && n > 0 ? n : 1, variant: v, note });
       if (!r2.ok) return setError(r2.error);
       toast(`${name} yaratildi va qo'shildi`);
       router.refresh();
@@ -309,11 +325,15 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
             {filtered.map((p) => {
               const inList = existing.includes(p.id);
               return (
-                <button key={p.id} onClick={() => { setSelected(p); setError(null); }} className="w-full flex items-center gap-3 p-2.5 min-h-14 rounded-xl hover:bg-surface-2 active:bg-surface-3 text-left transition-colors">
+                <button key={p.id} onClick={() => select(p)} className="w-full flex items-center gap-3 p-2.5 min-h-14 rounded-xl hover:bg-surface-2 active:bg-surface-3 text-left transition-colors">
                   <ProductThumb src={p.image} name={p.name} size={40} />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate">{p.name}</div>
-                    <div className="text-xs text-muted">{p.unit}{inList && " · ro'yxatda bor"}</div>
+                    <div className="text-xs text-muted truncate">
+                      {p.unit}
+                      {p.variants.length > 0 && <> · <span className="text-text-2">{p.variants.slice(0, 6).join(", ")}{p.variants.length > 6 ? ", …" : ""}</span></>}
+                      {inList && " · ro'yxatda bor"}
+                    </div>
                   </div>
                   <Plus size={16} className="text-muted" />
                 </button>
@@ -345,6 +365,9 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
             </Field>
             <Field label="Miqdor"><input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} className="input" /></Field>
           </div>
+          <Field label="Razmer (ixtiyoriy)" hint="Mahsulot razmerlari ro'yxatiga ham qo'shiladi">
+            <input value={variant} onChange={(e) => setVariant(e.target.value.slice(0, MAX_VARIANT_LEN))} className="input" placeholder="masalan: 32" />
+          </Field>
           <ErrorText>{error}</ErrorText>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setCreating(false)} className="btn-ghost">Orqaga</button>
@@ -363,6 +386,7 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
             </div>
             <button onClick={() => setSelected(null)} className="text-xs text-primary font-semibold">O'zgartirish</button>
           </div>
+          <VariantPicker options={selected.variants} value={variant} onChange={(v) => { setVariant(v); setError(null); }} />
           <Field label={`Miqdor (${selected.unit})`}>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setQty(String(Math.max(0, Number(qty) - 1)))} className="btn-ghost w-14 px-0 shrink-0" aria-label="Kamaytirish"><Minus size={20} strokeWidth={2.5} /></button>
@@ -411,5 +435,62 @@ function EditObjectModal({ open, onClose, site }: { open: boolean; onClose: () =
         </div>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * Razmer tanlash: mahsulotdagi razmerlar chip bo'lib chiqadi, bosib tanlanadi.
+ * Ro'yxatda yo'q razmerni "Boshqa" maydoniga yozish mumkin — u mahsulotga ham saqlanadi.
+ * Mahsulotda razmer bo'lmasa — faqat ixtiyoriy matn maydoni.
+ */
+function VariantPicker({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  const [custom, setCustom] = useState(false);
+  const isCustom = custom || (!!value && !options.includes(value));
+  if (options.length === 0) {
+    return (
+      <Field label="Razmer (ixtiyoriy)">
+        <input value={value} onChange={(e) => onChange(e.target.value.slice(0, MAX_VARIANT_LEN))} className="input" placeholder="masalan: 32" />
+      </Field>
+    );
+  }
+  return (
+    <Field label="Razmer" plain>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => {
+          const active = !isCustom && value === o;
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => { setCustom(false); onChange(o); }}
+              className={`min-h-11 px-4 rounded-xl text-sm font-bold border transition-colors active:scale-[0.98] ${
+                active ? "bg-primary-2 text-primary-ink border-primary-2" : "bg-surface text-text border-border hover:border-border-strong hover:bg-surface-2"
+              }`}
+              aria-pressed={active}
+            >
+              {o}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => { setCustom(true); if (options.includes(value)) onChange(""); }}
+          className={`min-h-11 px-4 rounded-xl text-sm font-bold border border-dashed transition-colors ${
+            isCustom ? "bg-primary-3 text-primary border-primary/40" : "bg-surface text-muted border-border-strong hover:text-text"
+          }`}
+        >
+          <Plus size={14} className="inline -mt-0.5 mr-1" />Boshqa
+        </button>
+      </div>
+      {isCustom && (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value.slice(0, MAX_VARIANT_LEN))}
+          className="input mt-2"
+          placeholder="Yangi razmerni yozing, masalan: 50"
+          autoFocus
+        />
+      )}
+    </Field>
   );
 }

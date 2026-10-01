@@ -25,6 +25,7 @@ export default async function EmployeesPage() {
     lastName: u.lastName,
     phone: u.phone,
     username: u.username,
+    avatar: u.avatar ?? null,
     role: u.role,
     active: u.active,
     createdAt: u.createdAt?.toISOString() ?? "",

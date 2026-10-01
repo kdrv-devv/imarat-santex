@@ -38,7 +38,7 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
           ))}
         </nav>
         <div className="mt-auto card p-3 flex items-center gap-3">
-          <Avatar firstName={user.firstName} lastName={user.lastName} size={38} />
+          <Avatar firstName={user.firstName} lastName={user.lastName} size={38} src={user.avatar} />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate">{user.fullName}</div>
             <div className="text-xs text-muted truncate">{isAdmin ? "Superadmin" : "Hodim"} · @{user.username}</div>
@@ -52,7 +52,7 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-[var(--z-sticky)] flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface">
           <Link href="/objects"><Logo compact /></Link>
-          <Link href="/profile"><Avatar firstName={user.firstName} lastName={user.lastName} size={34} /></Link>
+          <Link href="/profile"><Avatar firstName={user.firstName} lastName={user.lastName} size={34} src={user.avatar} /></Link>
         </header>
 
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-5 md:px-8 md:py-8 pb-28 md:pb-10">{children}</main>

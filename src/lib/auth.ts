@@ -57,6 +57,7 @@ export type CurrentUser = {
   phone: string;
   username: string;
   role: Role;
+  avatar: string | null;
   createdAt: string;
 };
 
@@ -77,6 +78,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     phone: u.phone,
     username: u.username,
     role: u.role,
+    avatar: u.avatar ?? null,
     createdAt: u.createdAt?.toISOString() ?? "",
   };
 }

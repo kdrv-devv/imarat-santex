@@ -1,9 +1,12 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
+import { defineModel } from "@/lib/db";
 
 const SiteItemSchema = new Schema(
   {
     product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
     qty: { type: Number, required: true, min: 0, default: 1 },
+    /** Tanlangan razmer/variant (mahsulot variantlaridan biri yoki qo'lda kiritilgan). Bo'sh = razmersiz */
+    variant: { type: String, default: "", trim: true },
     note: { type: String, default: "", trim: true },
     addedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     addedAt: { type: Date, default: Date.now },
@@ -36,4 +39,4 @@ const SiteSchema = new Schema(
 export type SiteItemDoc = InferSchemaType<typeof SiteItemSchema> & { _id: mongoose.Types.ObjectId };
 export type SiteDoc = InferSchemaType<typeof SiteSchema> & { _id: mongoose.Types.ObjectId };
 
-export const Site: Model<SiteDoc> = mongoose.models.Site ?? mongoose.model<SiteDoc>("Site", SiteSchema);
+export const Site: Model<SiteDoc> = defineModel<SiteDoc>("Site", SiteSchema);

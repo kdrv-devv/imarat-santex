@@ -10,6 +10,10 @@ import { requireUser, isAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import type { ActionResult } from "./auth";
 import type { GeoPoint } from "@/lib/types";
+import { MAX_VARIANT_LEN } from "@/lib/constants";
+
+/** Faoliyat tarixida "Kraynik · 32" ko'rinishida chiqishi uchun */
+const withVariant = (name: string, variant: string) => (variant ? `${name} · ${variant}` : name);
 
 const oid = (v: string) => mongoose.isValidObjectId(v);
 
@@ -81,31 +85,42 @@ export async function deleteObjectAction(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addItemAction(siteId: string, input: { productId: string; qty: number; note?: string }): Promise<ActionResult> {
+export async function addItemAction(siteId: string, input: { productId: string; qty: number; variant?: string; note?: string }): Promise<ActionResult> {
   const user = await requireUser();
   if (!oid(siteId) || !oid(input.productId)) return { ok: false, error: "Noto'g'ri ID" };
   const qty = Number(input.qty);
   if (!Number.isFinite(qty) || qty <= 0) return { ok: false, error: "Miqdor 0 dan katta bo'lsin" };
+  const variant = String(input.variant ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_VARIANT_LEN);
   await connectDB();
-  const [site, product] = await Promise.all([Site.findById(siteId), Product.findById(input.productId).lean()]);
+  const [site, product] = await Promise.all([Site.findById(siteId), Product.findById(input.productId)]);
   if (!site) return { ok: false, error: "Obyekt topilmadi" };
   if (!product) return { ok: false, error: "Mahsulot topilmadi" };
+  // Mahsulotda razmerlar bor-u, tanlanmagan bo'lsa — xato (sotuvchi qaysi razmerni yig'ishini bilmaydi)
+  const variants: string[] = Array.isArray(product.variants) ? product.variants : [];
+  if (variants.length && !variant) return { ok: false, error: "Razmerni tanlang" };
+  // Qo'lda kiritilgan yangi razmer mahsulot ro'yxatiga ham qo'shiladi — keyingi safar chip bo'lib chiqadi
+  if (variant && !variants.some((v) => v.toLowerCase() === variant.toLowerCase())) {
+    product.variants.push(variant);
+    await product.save();
+  }
+  const label = withVariant(product.name, variant);
 
-  const existing = site.items.find((i) => String(i.product) === input.productId);
+  // Bir xil mahsulot + bir xil razmer = bitta qator; boshqa razmer = alohida qator
+  const existing = site.items.find((i) => String(i.product) === input.productId && (i.variant ?? "") === variant);
   if (existing) {
     existing.qty += qty;
     if (input.note?.trim()) existing.note = input.note.trim();
     await site.save();
     await logActivity({
       actor: user.id, type: "ITEM_UPDATED", site: siteId, product: input.productId,
-      meta: { siteName: site.name, productName: product.name, qty: existing.qty, unit: product.unit, extra: `+${qty}` },
+      meta: { siteName: site.name, productName: label, qty: existing.qty, unit: product.unit, extra: `+${qty}` },
     });
   } else {
-    site.items.push({ product: product._id, qty, note: input.note?.trim() ?? "", addedBy: new mongoose.Types.ObjectId(user.id), addedAt: new Date() } as never);
+    site.items.push({ product: product._id, qty, variant, note: input.note?.trim() ?? "", addedBy: new mongoose.Types.ObjectId(user.id), addedAt: new Date() } as never);
     await site.save();
     await logActivity({
       actor: user.id, type: "ITEM_ADDED", site: siteId, product: input.productId,
-      meta: { siteName: site.name, productName: product.name, qty, unit: product.unit },
+      meta: { siteName: site.name, productName: label, qty, unit: product.unit },
     });
   }
   revalidatePath(`/objects/${siteId}`);
@@ -127,12 +142,12 @@ export async function updateItemAction(siteId: string, itemId: string, input: { 
   if (qty === 0) {
     site.items.pull({ _id: item._id });
     await site.save();
-    await logActivity({ actor: user.id, type: "ITEM_REMOVED", site: siteId, product: String(item.product), meta: { siteName: site.name, productName: product?.name ?? "" } });
+    await logActivity({ actor: user.id, type: "ITEM_REMOVED", site: siteId, product: String(item.product), meta: { siteName: site.name, productName: withVariant(product?.name ?? "", item.variant ?? "") } });
   } else {
     item.qty = qty;
     if (input.note !== undefined) item.note = input.note.trim();
     await site.save();
-    await logActivity({ actor: user.id, type: "ITEM_UPDATED", site: siteId, product: String(item.product), meta: { siteName: site.name, productName: product?.name ?? "", qty, unit: product?.unit ?? "" } });
+    await logActivity({ actor: user.id, type: "ITEM_UPDATED", site: siteId, product: String(item.product), meta: { siteName: site.name, productName: withVariant(product?.name ?? "", item.variant ?? ""), qty, unit: product?.unit ?? "" } });
   }
   revalidatePath(`/objects/${siteId}`);
   return { ok: true };

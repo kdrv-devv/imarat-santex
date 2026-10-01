@@ -7,7 +7,10 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models/User";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { uploadAvatarImage, deleteProductImage as deleteCloudinaryImage } from "@/lib/cloudinary";
 import type { ActionResult } from "./auth";
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB (brauzerda siqilgandan keyin odatda <100KB)
 
 const USERNAME_RE = /^[a-z0-9_.]{3,30}$/;
 
@@ -98,6 +101,46 @@ export async function deleteEmployeeAction(id: string): Promise<ActionResult> {
   await logActivity({ actor: admin.id, type: "USER_UPDATED", targetUser: id, meta: { userName: `${u.firstName} ${u.lastName}`, extra: "faolsizlantirildi" } });
   revalidatePath("/admin/employees");
   return { ok: true };
+}
+
+/**
+ * Profil rasmi: `imageAction` = "replace" (formadagi `image` fayli) yoki "remove".
+ * Eski rasm Cloudinary'dan o'chiriladi.
+ */
+export async function updateOwnAvatarAction(fd: FormData): Promise<ActionResult & { avatar?: string | null }> {
+  const me = await requireUser();
+  const action = fd.get("imageAction");
+  if (action !== "replace" && action !== "remove") return { ok: false, error: "Amal noto'g'ri" };
+
+  let uploaded: { url: string; publicId: string } | null = null;
+  if (action === "replace") {
+    const file = fd.get("image");
+    if (!(file instanceof Blob) || file.size === 0) return { ok: false, error: "Rasm fayli topilmadi" };
+    if (!file.type.startsWith("image/")) return { ok: false, error: "Faqat rasm fayli yuklash mumkin" };
+    if (file.size > MAX_AVATAR_BYTES) return { ok: false, error: "Rasm juda katta (max 5MB)" };
+    try {
+      uploaded = await uploadAvatarImage(file);
+    } catch (e) {
+      console.error("Avatar upload xatosi:", e);
+      return { ok: false, error: "Rasmni yuklab bo'lmadi. Qayta urinib ko'ring." };
+    }
+  }
+
+  await connectDB();
+  const u = await User.findById(me.id);
+  if (!u) {
+    await deleteCloudinaryImage(uploaded?.publicId);
+    return { ok: false, error: "Topilmadi" };
+  }
+  const oldPublicId = u.avatarPublicId;
+  u.avatar = uploaded?.url ?? null;
+  u.avatarPublicId = uploaded?.publicId ?? null;
+  await u.save();
+  if (oldPublicId && oldPublicId !== uploaded?.publicId) await deleteCloudinaryImage(oldPublicId);
+
+  revalidatePath("/profile");
+  revalidatePath("/", "layout");
+  return { ok: true, avatar: u.avatar };
 }
 
 /** Hodim o'z profilidagi ism/telefonini o'zgartira oladi (login/parol — yo'q) */
