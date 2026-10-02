@@ -85,47 +85,76 @@ export async function deleteObjectAction(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addItemAction(siteId: string, input: { productId: string; qty: number; variant?: string; note?: string }): Promise<ActionResult> {
+type ItemLine = { variant?: string; qty: number };
+
+/** Bitta mahsulotni bir nechta razmerda (har biri o'z miqdori bilan) bitta so'rovda qo'shadi */
+export async function addItemsAction(siteId: string, input: { productId: string; note?: string; items: ItemLine[] }): Promise<ActionResult> {
   const user = await requireUser();
   if (!oid(siteId) || !oid(input.productId)) return { ok: false, error: "Noto'g'ri ID" };
-  const qty = Number(input.qty);
-  if (!Number.isFinite(qty) || qty <= 0) return { ok: false, error: "Miqdor 0 dan katta bo'lsin" };
-  const variant = String(input.variant ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_VARIANT_LEN);
+  if (!Array.isArray(input.items) || input.items.length === 0) return { ok: false, error: "Kamida bitta razmer tanlang" };
+
+  // Razmerlarni tozalash va bir xil razmer ikki marta kelsa — miqdorlarini qo'shish
+  const lines: { variant: string; qty: number }[] = [];
+  for (const raw of input.items) {
+    const variant = String(raw.variant ?? "").trim().replace(/\s+/g, " ").slice(0, MAX_VARIANT_LEN);
+    const qty = Number(raw.qty);
+    if (!Number.isFinite(qty) || qty <= 0) return { ok: false, error: variant ? `${variant} razmer uchun miqdor 0 dan katta bo'lsin` : "Miqdor 0 dan katta bo'lsin" };
+    const same = lines.find((l) => l.variant.toLowerCase() === variant.toLowerCase());
+    if (same) same.qty += qty; else lines.push({ variant, qty });
+  }
+
   await connectDB();
   const [site, product] = await Promise.all([Site.findById(siteId), Product.findById(input.productId)]);
   if (!site) return { ok: false, error: "Obyekt topilmadi" };
   if (!product) return { ok: false, error: "Mahsulot topilmadi" };
   // Mahsulotda razmerlar bor-u, tanlanmagan bo'lsa — xato (sotuvchi qaysi razmerni yig'ishini bilmaydi)
   const variants: string[] = Array.isArray(product.variants) ? product.variants : [];
-  if (variants.length && !variant) return { ok: false, error: "Razmerni tanlang" };
-  // Qo'lda kiritilgan yangi razmer mahsulot ro'yxatiga ham qo'shiladi — keyingi safar chip bo'lib chiqadi
-  if (variant && !variants.some((v) => v.toLowerCase() === variant.toLowerCase())) {
-    product.variants.push(variant);
-    await product.save();
-  }
-  const label = withVariant(product.name, variant);
+  if (variants.length && lines.some((l) => !l.variant)) return { ok: false, error: "Razmerni tanlang" };
 
-  // Bir xil mahsulot + bir xil razmer = bitta qator; boshqa razmer = alohida qator
-  const existing = site.items.find((i) => String(i.product) === input.productId && (i.variant ?? "") === variant);
-  if (existing) {
-    existing.qty += qty;
-    if (input.note?.trim()) existing.note = input.note.trim();
-    await site.save();
-    await logActivity({
-      actor: user.id, type: "ITEM_UPDATED", site: siteId, product: input.productId,
-      meta: { siteName: site.name, productName: label, qty: existing.qty, unit: product.unit, extra: `+${qty}` },
-    });
-  } else {
-    site.items.push({ product: product._id, qty, variant, note: input.note?.trim() ?? "", addedBy: new mongoose.Types.ObjectId(user.id), addedAt: new Date() } as never);
-    await site.save();
-    await logActivity({
-      actor: user.id, type: "ITEM_ADDED", site: siteId, product: input.productId,
-      meta: { siteName: site.name, productName: label, qty, unit: product.unit },
-    });
+  // Qo'lda kiritilgan yangi razmerlar mahsulot ro'yxatiga ham qo'shiladi — keyingi safar chip bo'lib chiqadi.
+  // Razmer kiritish faqat superadmin huquqi: oddiy xodim mavjud razmerlardan tanlaydi.
+  let productChanged = false;
+  for (const l of lines) {
+    if (l.variant && !variants.some((v) => v.toLowerCase() === l.variant.toLowerCase())) {
+      if (!isAdmin(user)) return { ok: false, error: `“${l.variant}” razmeri mahsulotda yo'q. Yangi razmer qo'shish faqat superadmin uchun` };
+      product.variants.push(l.variant);
+      variants.push(l.variant);
+      productChanged = true;
+    }
   }
+  if (productChanged) await product.save();
+
+  const note = input.note?.trim() ?? "";
+  const logs: Parameters<typeof logActivity>[0][] = [];
+  for (const l of lines) {
+    const label = withVariant(product.name, l.variant);
+    // Bir xil mahsulot + bir xil razmer = bitta qator; boshqa razmer = alohida qator
+    const existing = site.items.find((i) => String(i.product) === input.productId && (i.variant ?? "") === l.variant);
+    if (existing) {
+      existing.qty += l.qty;
+      if (note) existing.note = note;
+      logs.push({
+        actor: user.id, type: "ITEM_UPDATED", site: siteId, product: input.productId,
+        meta: { siteName: site.name, productName: label, qty: existing.qty, unit: product.unit, extra: `+${l.qty}` },
+      });
+    } else {
+      site.items.push({ product: product._id, qty: l.qty, variant: l.variant, note, addedBy: new mongoose.Types.ObjectId(user.id), addedAt: new Date() } as never);
+      logs.push({
+        actor: user.id, type: "ITEM_ADDED", site: siteId, product: input.productId,
+        meta: { siteName: site.name, productName: label, qty: l.qty, unit: product.unit },
+      });
+    }
+  }
+  await site.save();
+  for (const entry of logs) await logActivity(entry);
+
   revalidatePath(`/objects/${siteId}`);
   revalidatePath("/objects");
   return { ok: true };
+}
+
+export async function addItemAction(siteId: string, input: { productId: string; qty: number; variant?: string; note?: string }): Promise<ActionResult> {
+  return addItemsAction(siteId, { productId: input.productId, note: input.note, items: [{ variant: input.variant, qty: input.qty }] });
 }
 
 export async function updateItemAction(siteId: string, itemId: string, input: { qty: number; note?: string }): Promise<ActionResult> {

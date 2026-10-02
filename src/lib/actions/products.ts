@@ -46,10 +46,19 @@ async function uploadOrError(file: Blob): Promise<UploadedImage | { error: strin
   }
 }
 
+/** Razmerlar o'zgargan-o'zgarmaganini tekshiradi (tartib va katta-kichik harfga e'tibor bermasdan) */
+function sameVariants(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const norm = (l: string[]) => [...l].map((v) => v.toLowerCase()).sort();
+  const x = norm(a), y = norm(b);
+  return x.every((v, i) => v === y[i]);
+}
+
 export async function createProductAction(fd: FormData): Promise<ActionResult & { id?: string }> {
   const user = await requireUser();
   const { name, unit, note, variants } = readFields(fd);
   if (!name) return { ok: false, error: "Mahsulot nomini kiriting" };
+  if (variants.length && !isAdmin(user)) return { ok: false, error: "Razmer kiritish faqat superadmin uchun" };
   if (!UNITS.includes(unit as Unit)) return { ok: false, error: "O'lchov birligi noto'g'ri" };
   let intent: ImageIntent;
   try { intent = readImageIntent(fd); } catch (e) { return { ok: false, error: (e as Error).message }; }
@@ -97,6 +106,9 @@ export async function updateProductAction(id: string, fd: FormData): Promise<Act
     if ("error" in r) return { ok: false, error: r.error };
     uploaded = r;
   }
+
+  const currentVariants: string[] = Array.isArray(p.variants) ? [...p.variants] : [];
+  if (!isAdmin(user) && !sameVariants(currentVariants, variants)) return { ok: false, error: "Razmerlarni faqat superadmin o'zgartira oladi" };
 
   p.name = name;
   p.unit = unit as Unit;

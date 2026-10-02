@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, MapPin, Share2, Plus, Trash2, Minus, Search, Pencil, Loader2, Check, Copy, Package, ExternalLink, StickyNote, CarTaxiFront,
+  ArrowLeft, MapPin, Share2, Plus, Trash2, Minus, Search, Pencil, Loader2, Check, Copy, Package, ExternalLink, StickyNote, CarTaxiFront, X,
 } from "lucide-react";
 import { TimeAgo } from "@/components/TimeAgo";
 import { Modal } from "@/components/ui/Modal";
@@ -16,7 +16,7 @@ import { DownloadImageButton } from "@/components/DownloadImageButton";
 import { useToast } from "@/components/ui/Toast";
 import {formatDate, formatQty} from "@/lib/format";
 import { UNITS } from "@/lib/constants";
-import { addItemAction, deleteObjectAction, removeItemAction, updateItemAction, updateObjectAction } from "@/lib/actions/objects";
+import { addItemAction, addItemsAction, deleteObjectAction, removeItemAction, updateItemAction, updateObjectAction } from "@/lib/actions/objects";
 import { createProductAction } from "@/lib/actions/products";
 import type { GeoPoint, ProductLite, SiteView } from "@/lib/types";
 import { LocationPicker } from "@/components/map/LocationPicker";
@@ -108,7 +108,7 @@ export function ObjectDetail({ site, products, isAdmin, canDelete, currentUserId
         </div>
       )}
 
-      <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} siteId={site.id} products={products} existing={site.items.map((i) => i.product?.id ?? "")} />
+      <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} siteId={site.id} products={products} existing={site.items.map((i) => i.product?.id ?? "")} isAdmin={isAdmin} />
       <EditObjectModal key={editOpen ? "open" : "closed"} open={editOpen} onClose={() => setEditOpen(false)} site={site} />
 
       <Modal open={shareOpen} onClose={() => setShareOpen(false)} title="Ro'yxatni ulashish" size="sm">
@@ -258,13 +258,15 @@ function QtyControl({ qty, unit, onChange, onCommit, onZero }: { qty: number; un
   );
 }
 
-function AddItemModal({ open, onClose, siteId, products, existing }: { open: boolean; onClose: () => void; siteId: string; products: ProductLite[]; existing: string[] }) {
+function AddItemModal({ open, onClose, siteId, products, existing, isAdmin }: { open: boolean; onClose: () => void; siteId: string; products: ProductLite[]; existing: string[]; isAdmin: boolean }) {
   const { toast } = useToast();
   const router = useRouter();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<ProductLite | null>(null);
   const [qty, setQty] = useState("1");
   const [variant, setVariant] = useState("");
+  /** Razmerli mahsulot uchun: tanlangan razmerlar, har biri o'z miqdori bilan */
+  const [picks, setPicks] = useState<VariantPick[]>([]);
   const [note, setNote] = useState("");
   const [creating, setCreating] = useState(false);
   const [newUnit, setNewUnit] = useState<string>("dona");
@@ -276,15 +278,29 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
     return (s ? products.filter((p) => p.name.toLowerCase().includes(s)) : products).slice(0, 60);
   }, [q, products]);
 
-  function reset() { setQ(""); setSelected(null); setQty("1"); setVariant(""); setNote(""); setCreating(false); setError(null); }
-  function select(p: ProductLite) { setSelected(p); setVariant(""); setError(null); }
+  function reset() { setQ(""); setSelected(null); setQty("1"); setVariant(""); setPicks([]); setNote(""); setCreating(false); setError(null); }
+  function select(p: ProductLite) { setSelected(p); setVariant(""); setPicks([]); setError(null); }
   function close() { reset(); onClose(); }
 
   function add(product: ProductLite) {
+    // Razmerli mahsulot: tanlangan har bir razmer o'z miqdori bilan bitta so'rovda ketadi
+    if (product.variants.length) {
+      if (picks.length === 0) return setError("Kamida bitta razmerni tanlang");
+      for (const pk of picks) {
+        const n = Number(pk.qty);
+        if (!Number.isFinite(n) || n <= 0) return setError(`${pk.variant} razmer uchun miqdor 0 dan katta bo'lsin`);
+      }
+      start(async () => {
+        const r = await addItemsAction(siteId, { productId: product.id, note, items: picks.map((pk) => ({ variant: pk.variant, qty: Number(pk.qty) })) });
+        if (!r.ok) return setError(r.error);
+        toast(`${product.name} · ${picks.map((pk) => pk.variant).join(", ")} qo'shildi`);
+        close();
+      });
+      return;
+    }
     const n = Number(qty);
     if (!Number.isFinite(n) || n <= 0) return setError("Miqdor 0 dan katta bo'lsin");
     const v = variant.trim();
-    if (product.variants.length && !v) return setError("Razmerni tanlang");
     start(async () => {
       const r = await addItemAction(siteId, { productId: product.id, qty: n, variant: v, note });
       if (!r.ok) return setError(r.error);
@@ -365,9 +381,11 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
             </Field>
             <Field label="Miqdor"><input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} className="input" /></Field>
           </div>
-          <Field label="Razmer (ixtiyoriy)" hint="Mahsulot razmerlari ro'yxatiga ham qo'shiladi">
-            <input value={variant} onChange={(e) => setVariant(e.target.value.slice(0, MAX_VARIANT_LEN))} className="input" placeholder="masalan: 32" />
-          </Field>
+          {isAdmin && (
+            <Field label="Razmer (ixtiyoriy)" hint="Mahsulot razmerlari ro'yxatiga ham qo'shiladi">
+              <input value={variant} onChange={(e) => setVariant(e.target.value.slice(0, MAX_VARIANT_LEN))} className="input" placeholder="masalan: 32" />
+            </Field>
+          )}
           <ErrorText>{error}</ErrorText>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setCreating(false)} className="btn-ghost">Orqaga</button>
@@ -386,19 +404,28 @@ function AddItemModal({ open, onClose, siteId, products, existing }: { open: boo
             </div>
             <button onClick={() => setSelected(null)} className="text-xs text-primary font-semibold">O'zgartirish</button>
           </div>
-          <VariantPicker options={selected.variants} value={variant} onChange={(v) => { setVariant(v); setError(null); }} />
-          <Field label={`Miqdor (${selected.unit})`}>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setQty(String(Math.max(0, Number(qty) - 1)))} className="btn-ghost w-14 px-0 shrink-0" aria-label="Kamaytirish"><Minus size={20} strokeWidth={2.5} /></button>
-              <input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} className="input text-center text-2xl font-extrabold h-14" onKeyDown={(e) => e.key === "Enter" && add(selected)} />
-              <button type="button" onClick={() => setQty(String(Number(qty) + 1))} className="btn-primary w-14 px-0 shrink-0" aria-label="Ko'paytirish"><Plus size={20} strokeWidth={2.5} /></button>
-            </div>
-          </Field>
+          {selected.variants.length > 0 ? (
+            <MultiVariantPicker options={selected.variants} unit={selected.unit} picks={picks} onChange={(next) => { setPicks(next); setError(null); }} onSubmit={() => add(selected)} allowCustom={isAdmin} />
+          ) : (
+            <>
+              {isAdmin && <VariantPicker options={selected.variants} value={variant} onChange={(v) => { setVariant(v); setError(null); }} />}
+              <Field label={`Miqdor (${selected.unit})`}>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setQty(String(Math.max(0, Number(qty) - 1)))} className="btn-ghost w-14 px-0 shrink-0" aria-label="Kamaytirish"><Minus size={20} strokeWidth={2.5} /></button>
+                  <input type="number" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)} className="input text-center text-2xl font-extrabold h-14" onKeyDown={(e) => e.key === "Enter" && add(selected)} />
+                  <button type="button" onClick={() => setQty(String(Number(qty) + 1))} className="btn-primary w-14 px-0 shrink-0" aria-label="Ko'paytirish"><Plus size={20} strokeWidth={2.5} /></button>
+                </div>
+              </Field>
+            </>
+          )}
           <Field label="Izoh (ixtiyoriy)"><input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="masalan: 20mm, oq rang" /></Field>
           <ErrorText>{error}</ErrorText>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setSelected(null)} className="btn-ghost">Orqaga</button>
-            <button onClick={() => add(selected)} disabled={pending} className="btn-accent">{pending && <Loader2 size={16} className="animate-spin" />} Qo'shish</button>
+            <button onClick={() => add(selected)} disabled={pending} className="btn-accent">
+              {pending && <Loader2 size={16} className="animate-spin" />}
+              {selected.variants.length > 0 && picks.length > 1 ? `Qo'shish (${picks.length} razmer)` : "Qo'shish"}
+            </button>
           </div>
         </div>
       )}
@@ -492,5 +519,132 @@ function VariantPicker({ options, value, onChange }: { options: string[]; value:
         />
       )}
     </Field>
+  );
+}
+
+type VariantPick = { variant: string; qty: string };
+
+/**
+ * Bir nechta razmerni tanlash: chip bosilsa tanlanadi va pastda o'sha razmer uchun miqdor inputi paydo bo'ladi,
+ * qayta bosilsa olib tashlanadi. "Boshqa" orqali ro'yxatda yo'q razmer yoziladi — u ham tanlanganlar qatoriga qo'shiladi.
+ * Shunday qilib bitta mahsulotni bir nechta razmerda bir urinishda qo'shib ketish mumkin.
+ */
+function MultiVariantPicker({ options, unit, picks, onChange, onSubmit, allowCustom }: {
+  options: string[]; unit: string; picks: VariantPick[]; onChange: (next: VariantPick[]) => void; onSubmit: () => void;
+  /** Ro'yxatda yo'q razmer yozish ("Boshqa") — faqat superadmin uchun */
+  allowCustom: boolean;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const has = (v: string) => picks.some((p) => p.variant.toLowerCase() === v.toLowerCase());
+
+  function toggle(v: string) {
+    if (has(v)) onChange(picks.filter((p) => p.variant.toLowerCase() !== v.toLowerCase()));
+    else onChange([...picks, { variant: v, qty: "1" }]);
+  }
+  function addCustom() {
+    const v = custom.trim().replace(/\s+/g, " ").slice(0, MAX_VARIANT_LEN);
+    if (!v) return;
+    // Ro'yxatdagi razmer yozilsa — o'sha chip tanlanadi (dublikat bo'lmasin)
+    const known = options.find((o) => o.toLowerCase() === v.toLowerCase());
+    if (!has(known ?? v)) onChange([...picks, { variant: known ?? v, qty: "1" }]);
+    setCustom("");
+    setCustomOpen(false);
+  }
+  function setQty(variant: string, qty: string) {
+    onChange(picks.map((p) => (p.variant === variant ? { ...p, qty } : p)));
+  }
+  function step(variant: string, delta: number) {
+    const cur = picks.find((p) => p.variant === variant);
+    if (!cur) return;
+    setQty(variant, String(Math.max(0, Number(cur.qty || 0) + delta)));
+  }
+
+  const customOnes = picks.filter((p) => !options.some((o) => o.toLowerCase() === p.variant.toLowerCase()));
+
+  return (
+    <>
+      <Field label="Razmer" hint={allowCustom ? "Bir nechta razmerni tanlash mumkin — har biri uchun alohida miqdor kiritiladi" : "Bir nechta razmerni tanlash mumkin. Yangi razmer qo'shishni superadmin bajaradi"} plain>
+        <div className="flex flex-wrap gap-2">
+          {options.map((o) => {
+            const active = has(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                onClick={() => toggle(o)}
+                className={`min-h-11 px-4 rounded-xl text-sm font-bold border transition-colors active:scale-[0.98] inline-flex items-center gap-1.5 ${
+                  active ? "bg-primary-2 text-primary-ink border-primary-2" : "bg-surface text-text border-border hover:border-border-strong hover:bg-surface-2"
+                }`}
+                aria-pressed={active}
+              >
+                {active && <Check size={14} strokeWidth={3} />}
+                {o}
+              </button>
+            );
+          })}
+          {customOnes.map((p) => (
+            <button
+              key={p.variant}
+              type="button"
+              onClick={() => toggle(p.variant)}
+              className="min-h-11 px-4 rounded-xl text-sm font-bold border border-dashed bg-primary-2 text-primary-ink border-primary-2 inline-flex items-center gap-1.5"
+              aria-pressed
+            >
+              <Check size={14} strokeWidth={3} />
+              {p.variant}
+            </button>
+          ))}
+          {allowCustom && (
+            <button
+              type="button"
+              onClick={() => setCustomOpen((v) => !v)}
+              className={`min-h-11 px-4 rounded-xl text-sm font-bold border border-dashed transition-colors ${
+                customOpen ? "bg-primary-3 text-primary border-primary/40" : "bg-surface text-muted border-border-strong hover:text-text"
+              }`}
+            >
+              <Plus size={14} className="inline -mt-0.5 mr-1" />Boshqa
+            </button>
+          )}
+        </div>
+        {allowCustom && customOpen && (
+          <div className="flex gap-2 mt-2">
+            <input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value.slice(0, MAX_VARIANT_LEN))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+              className="input"
+              placeholder="Yangi razmerni yozing, masalan: 50"
+              autoFocus
+            />
+            <button type="button" onClick={addCustom} disabled={!custom.trim()} className="btn-primary shrink-0"><Plus size={16} /> Tanlash</button>
+          </div>
+        )}
+      </Field>
+
+      {picks.length > 0 && (
+        <Field label={`Miqdor (${unit})`} plain>
+          <div className="space-y-2">
+            {picks.map((p) => (
+              <div key={p.variant} className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 p-2 animate-fade-up">
+                <VariantBadge value={p.variant} className="shrink-0" />
+                <div className="flex items-center gap-1.5 flex-1 justify-end">
+                  <button type="button" onClick={() => step(p.variant, -1)} className="btn-ghost w-11 h-11 px-0 shrink-0" aria-label={`${p.variant}: kamaytirish`}><Minus size={18} strokeWidth={2.5} /></button>
+                  <input
+                    type="number" min={0} step="any" value={p.qty}
+                    onChange={(e) => setQty(p.variant, e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+                    className="input text-center text-xl font-extrabold h-11 w-20 px-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    aria-label={`${p.variant} razmer miqdori`}
+                  />
+                  <button type="button" onClick={() => step(p.variant, 1)} className="btn-primary w-11 h-11 px-0 shrink-0" aria-label={`${p.variant}: ko'paytirish`}><Plus size={18} strokeWidth={2.5} /></button>
+                  <button type="button" onClick={() => toggle(p.variant)} className="w-10 h-11 rounded-xl flex items-center justify-center text-muted hover:text-danger hover:bg-danger-bg shrink-0" aria-label={`${p.variant} razmerni olib tashlash`}><X size={18} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Field>
+      )}
+    </>
   );
 }

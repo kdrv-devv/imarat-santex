@@ -195,9 +195,19 @@ function ProductModal({ product, open, onClose, isAdmin, usage }: { product: Pro
             </Field>
           </div>
         </div>
-        <Field label="Razmerlar / variantlar (ixtiyoriy)" plain>
-          <VariantsInput value={variants} onChange={setVariants} />
-        </Field>
+        {isAdmin ? (
+          <Field label="Razmerlar / variantlar (ixtiyoriy)" plain>
+            <VariantsInput value={variants} onChange={setVariants} />
+          </Field>
+        ) : variants.length > 0 ? (
+          <Field label="Razmerlar / variantlar" hint="Razmerlarni faqat superadmin o'zgartira oladi" plain>
+            <div className="flex flex-wrap gap-1.5">
+              {variants.map((v) => (
+                <span key={v} className="inline-flex items-center rounded-lg bg-surface-2 border border-border text-text-2 text-sm font-bold px-2.5 py-1">{v}</span>
+              ))}
+            </div>
+          </Field>
+        ) : null}
         <Field label="Izoh (ixtiyoriy)"><input value={note} onChange={(e) => setNote(e.target.value)} className="input" placeholder="Brend, rang..." /></Field>
 
         {product && isAdmin && (
