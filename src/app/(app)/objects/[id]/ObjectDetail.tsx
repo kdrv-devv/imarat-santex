@@ -34,8 +34,17 @@ export function ObjectDetail({ site, products, isAdmin, canDelete, currentUserId
   const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, start] = useTransition();
+  const [itemQ, setItemQ] = useState("");
 
   const total = site.items.reduce((a, i) => a + i.qty, 0);
+  // Ro'yxat uzun bo'lganda nom / razmer / izoh bo'yicha qidirish
+  const filteredItems = useMemo(() => {
+    const s = itemQ.trim().toLowerCase();
+    if (!s) return site.items;
+    return site.items.filter((it) =>
+      [it.product?.name, it.variant, it.note].some((v) => v?.toLowerCase().includes(s)),
+    );
+  }, [site.items, itemQ]);
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/share/${site.shareToken}` : `/share/${site.shareToken}`;
 
   function del() {
@@ -101,11 +110,33 @@ export function ObjectDetail({ site, products, isAdmin, canDelete, currentUserId
           action={<button onClick={() => setAddOpen(true)} className="btn-accent"><Plus size={18} /> Mahsulot qo'shish</button>}
         />
       ) : (
-        <div className="card divide-y divide-border overflow-hidden">
-          {site.items.map((it) => (
-            <ItemRow key={it.id} siteId={site.id} item={it} isAdmin={isAdmin} currentUserId={currentUserId} />
-          ))}
-        </div>
+        <>
+          <div className="relative mb-3 animate-fade-up">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              value={itemQ}
+              onChange={(e) => setItemQ(e.target.value)}
+              className="input pl-11 py-3 pr-10"
+              placeholder="Ro'yxatdan qidirish: truba, tirsak, kran..."
+              aria-label="Ashyolar ro'yxatidan qidirish"
+            />
+            {itemQ && (
+              <button onClick={() => setItemQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text" aria-label="Tozalash">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {filteredItems.length === 0 ? (
+            <div className="card p-8 text-center text-sm text-muted">“{itemQ.trim()}” bo'yicha hech narsa topilmadi</div>
+          ) : (
+            <div className="card divide-y divide-border overflow-hidden">
+              {filteredItems.map((it) => (
+                <ItemRow key={it.id} siteId={site.id} item={it} isAdmin={isAdmin} currentUserId={currentUserId} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} siteId={site.id} products={products} existing={site.items.map((i) => i.product?.id ?? "")} isAdmin={isAdmin} />
